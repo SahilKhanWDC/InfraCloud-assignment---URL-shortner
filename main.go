@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"sort"
 	"time"
 )
 
@@ -18,6 +20,7 @@ type URL struct {
 }
 
 var urlDB = make(map[string]URL)
+var domainCount = make(map[string]int)
 
 func generateShortURL(OrignalURL string) string {
 	hasher := md5.New()
@@ -38,6 +41,13 @@ func createURL(originalURL string) string {
 		ShortURL:      shortURL,
 		CreateionDate: time.Now(),
 	}
+
+	parsed, err := url.Parse(originalURL)
+	if err == nil {
+		domain := parsed.Hostname()
+		domainCount[domain]++
+	}
+
 	return shortURL
 }
 
@@ -54,13 +64,13 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "don't worry !! home route is serving perfectly :) ")
 }
 
-func ShortURLHandler(w http.ResponseWriter, r *http.Request){
+func ShortURLHandler(w http.ResponseWriter, r *http.Request) {
 	var data struct {
 		URL string `json:"url"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
-		http.Error(w,"invalid request body", http.StatusBadRequest)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	short_URL := createURL(data.URL)
@@ -68,17 +78,40 @@ func ShortURLHandler(w http.ResponseWriter, r *http.Request){
 		ShortURL string `json: "short_url"`
 	}{ShortURL: short_URL}
 
-	w.Header().Set("Content-Type","application/json")
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
-func redirectURLHandler(w http.ResponseWriter, r *http.Request){
+func redirectURLHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[len("/redirect/"):]
-	url,err := getURL(id)
+	url, err := getURL(id)
 	if err != nil {
-		http.Error(w,"invalid request",http.StatusNotFound)
+		http.Error(w, "invalid request", http.StatusNotFound)
 	}
-	http.Redirect(w,r,url.OrignalURL,http.StatusFound)
+	http.Redirect(w, r, url.OrignalURL, http.StatusFound)
+}
+
+func metricsHandler(w http.ResponseWriter, r *http.Request) {
+	type domainMetric struct {
+		Domain string `json:"domain"`
+		Count  int    `json:"count"`
+	}
+
+	var metrics []domainMetric
+	for domain, count := range domainCount {
+		metrics = append(metrics, domainMetric{Domain: domain, Count: count})
+	}
+
+	sort.Slice(metrics, func(i, j int) bool {
+		return metrics[i].Count > metrics[j].Count
+	})
+
+	if len(metrics) > 3 {
+		metrics = metrics[:3]
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(metrics)
 }
 
 
@@ -88,6 +121,7 @@ func main() {
 
 	http.HandleFunc("/shorten", ShortURLHandler)
 	http.HandleFunc("/redirect/", redirectURLHandler)
+	http.HandleFunc("/metrics", metricsHandler)
 
 	fmt.Println("server is running on port 3000...")
 	err := http.ListenAndServe(":3000", nil)
