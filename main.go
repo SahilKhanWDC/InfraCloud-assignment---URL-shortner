@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -25,6 +26,27 @@ func generateShortURL(OrignalURL string ) string {
 	fmt.Println("Encode to string", hash)
 	fmt.Println("final hashed string", hash[:8])
 	return hash[:8]
+}
+
+func createURL(originalURL string) string {
+	shortURL := generateShortURL(originalURL)
+	id := shortURL
+	urlDB[id] = URL{
+		ID: id,
+		OrignalURL: originalURL,
+		ShortURL: shortURL,
+		CreateionDate: time.Now(),
+	}
+	return shortURL
+}
+
+func getURL(id string) (URL, error){
+	url, ok := urlDB[id]
+	if !ok {
+		return URL{},
+		errors.New("url not found")
+	}
+	return url,nil
 }
 
 func main() {
