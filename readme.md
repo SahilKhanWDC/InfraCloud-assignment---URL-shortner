@@ -46,7 +46,7 @@ A simple URL shortener built using **Go (Golang)** that provides:
 http://localhost:3000/redirect/a1b2c3d4
 → redirects to https://www.example.com
 
-**GET** `/metrices`
+**GET** `/metrics`
 ```json
 [
   {"domain": "www.udemy.com", "count": 6},
